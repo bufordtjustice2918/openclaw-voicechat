@@ -12,9 +12,11 @@ cd openclaw-voicechat/client-macos-gui
 ## Run settings
 - Receiver URL and Token are editable in the UI.
 - Click **Save Settings** to persist to `~/.openclaw-voicechat.env`.
-- Click **Record** to start, **Stop & Upload** to send.
+- Click **Record** to start, **Stop & Send** to send.
 - **Test Mic** (records 2s + plays back, **no upload**).
 - **Recording level** meter updates while recording.
 - **Input device** picker sets the system default input device.
+- **Fast mode (local whisper)** sends transcript instantly.
+- **Upload audio in background** is optional.
 
 Mic permission will be requested on first run.

@@ -11,7 +11,7 @@ struct OpenClawVoiceChatGUIApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(state)
-                .frame(minWidth: 620, minHeight: 420)
+                .frame(minWidth: 660, minHeight: 460)
         }
     }
 }
@@ -30,6 +30,8 @@ final class AppState: ObservableObject {
     @Published var level: Double = 0.0
     @Published var inputDevices: [InputDevice] = []
     @Published var selectedDeviceId: AudioDeviceID? = nil
+    @Published var fastModeLocalWhisper: Bool = true
+    @Published var uploadAudioInBackground: Bool = false
 
     private var recorder: AVAudioRecorder?
     private var tempURL: URL?
@@ -39,14 +41,6 @@ final class AppState: ObservableObject {
         loadEnvFile()
         refreshInputDevices()
         requestMicAccess()
-    }
-
-    func requestMicAccess() {
-        AVCaptureDevice.requestAccess(for: .audio) { granted in
-            DispatchQueue.main.async {
-                self.status = granted ? "Mic permission granted" : "Mic permission denied"
-            }
-        }
     }
 
     func loadEnvFile() {
@@ -71,6 +65,14 @@ final class AppState: ObservableObject {
         let content = "export RECEIVER_URL=\"\(receiverURL)\"\nexport OPENCLAW_TOKEN=\"\(token)\"\n"
         try? content.write(to: path, atomically: true, encoding: .utf8)
         status = "Settings saved"
+    }
+
+    func requestMicAccess() {
+        AVCaptureDevice.requestAccess(for: .audio) { granted in
+            DispatchQueue.main.async {
+                self.status = granted ? "Mic permission granted" : "Mic permission denied"
+            }
+        }
     }
 
     func refreshInputDevices() {
@@ -137,13 +139,28 @@ final class AppState: ObservableObject {
         recorder?.stop()
         recorder = nil
         stopMeter()
-        status = "Uploading…"
 
         guard let url = tempURL else {
             status = "No recording found"
             return
         }
-        upload(fileURL: url)
+
+        if fastModeLocalWhisper {
+            status = "Transcribing locally…"
+            if let transcript = runLocalWhisper(fileURL: url), !transcript.isEmpty {
+                sendText(transcript)
+                if uploadAudioInBackground {
+                    upload(fileURL: url)
+                } else {
+                    try? FileManager.default.removeItem(at: url)
+                }
+            } else {
+                status = "Local whisper failed (is whisper installed?)"
+            }
+        } else {
+            status = "Uploading…"
+            upload(fileURL: url)
+        }
     }
 
     func startMeter() {
@@ -180,6 +197,69 @@ final class AppState: ObservableObject {
                 }
             }
         }
+    }
+
+    func runLocalWhisper(fileURL: URL) -> String? {
+        let which = Process()
+        which.launchPath = "/usr/bin/which"
+        which.arguments = ["whisper"]
+        let pipe = Pipe()
+        which.standardOutput = pipe
+        try? which.run()
+        which.waitUntilExit()
+        if which.terminationStatus != 0 { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let whisperPath = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if whisperPath == nil || whisperPath!.isEmpty { return nil }
+
+        let tempDir = FileManager.default.temporaryDirectory
+        let outDir = tempDir.appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
+
+        let proc = Process()
+        proc.launchPath = whisperPath
+        proc.arguments = ["--model", "tiny", "--language", "en", "--output_format", "txt", "--output_dir", outDir.path, fileURL.path]
+        try? proc.run()
+        proc.waitUntilExit()
+        if proc.terminationStatus != 0 { return nil }
+
+        let txtPath = outDir.appendingPathComponent(fileURL.deletingPathExtension().lastPathComponent + ".txt")
+        let text = try? String(contentsOf: txtPath)
+        return text?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func sendText(_ text: String) {
+        let textURL = receiverURL.replacingOccurrences(of: "/ingest", with: "/ingest_text")
+        guard let endpoint = URL(string: textURL) else {
+            status = "Invalid RECEIVER_URL"
+            return
+        }
+        if token.isEmpty {
+            status = "OPENCLAW_TOKEN is required"
+            return
+        }
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(token, forHTTPHeaderField: "X-OpenClaw-Token")
+        let payload = ["text": text]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    self?.status = "Text send failed: \(error.localizedDescription)"
+                } else {
+                    let http = response as? HTTPURLResponse
+                    if http?.statusCode == 200 {
+                        self?.status = "Text sent"
+                    } else {
+                        self?.status = "Text send failed (status \(http?.statusCode ?? -1))"
+                    }
+                }
+            }
+        }.resume()
     }
 
     func upload(fileURL: URL) {
@@ -269,7 +349,7 @@ struct ContentView: View {
                 Button(action: {
                     if state.isRecording { state.stopRecording() } else { state.startRecording() }
                 }) {
-                    Text(state.isRecording ? "Stop & Upload" : "Record")
+                    Text(state.isRecording ? "Stop & Send" : "Record")
                         .frame(minWidth: 140)
                 }
                 .keyboardShortcut(.return, modifiers: [])
@@ -281,6 +361,8 @@ struct ContentView: View {
 
             HStack(spacing: 12) {
                 Button("Test Mic") { state.testMic() }
+                Toggle("Fast mode (local whisper)", isOn: $state.fastModeLocalWhisper)
+                Toggle("Upload audio in background", isOn: $state.uploadAudioInBackground)
             }
 
             VStack(alignment: .leading, spacing: 6) {
