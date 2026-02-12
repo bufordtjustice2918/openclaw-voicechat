@@ -128,12 +128,12 @@ let callback: CGEventTapCallBack = { proxy, type, event, refcon in
 
 let refcon = Unmanaged.passUnretained(recorder).toOpaque()
 if let eventTap = CGEventTapCreate(
-    tap: .cgSessionEventTap,
-    place: .headInsertEventTap,
-    options: .defaultTap,
-    eventsOfInterest: CGEventMask(eventMask),
-    callback: callback,
-    userInfo: refcon
+    .cgSessionEventTap,
+    .headInsertEventTap,
+    .defaultTap,
+    CGEventMask(eventMask),
+    callback,
+    refcon
 ) {
     let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
     CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
