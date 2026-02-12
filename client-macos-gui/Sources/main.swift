@@ -138,7 +138,7 @@ final class AppState: ObservableObject {
             recorder.updateMeters()
             let power = recorder.averagePower(forChannel: 0) // -160..0
             let normalized = max(0.0, (power + 60) / 60) // 0..1
-            self.level = normalized
+            self.level = Double(normalized)
         }
     }
 
@@ -242,7 +242,7 @@ struct ContentView: View {
                         Text(device.name).tag(Optional(device.id))
                     }
                 }
-                .onChange(of: state.selectedDeviceId) { _, newValue in
+                .onChange(of: state.selectedDeviceId) { newValue in
                     if let id = newValue { state.setDefaultInputDevice(id) }
                 }
             }
