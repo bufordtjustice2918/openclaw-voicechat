@@ -97,6 +97,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.recordBtn = QtWidgets.QPushButton("Record")
         self.recordBtn.clicked.connect(self.toggle_record)
         btns.addWidget(self.recordBtn)
+
+        self.downloadBtn = QtWidgets.QPushButton("Download larger model")
+        self.downloadBtn.clicked.connect(self.download_model)
+        btns.addWidget(self.downloadBtn)
+
         layout.addLayout(btns)
 
         self.status = QtWidgets.QLabel("Status: Idle")
@@ -145,14 +150,72 @@ class MainWindow(QtWidgets.QMainWindow):
                 wf.setsampwidth(2)
                 wf.setframerate(16000)
                 wf.writeframes(audio_bytes)
-            files = {"audio": open(path, "rb")}
-            headers = {"X-OpenClaw-Token": token}
-            r = requests.post(url, files=files, headers=headers, timeout=30)
-            r.raise_for_status()
-            self.set_status("Uploaded successfully")
+
+            # try local whisper.cpp
+            text = self.run_local_whisper(path)
+            if text:
+                self.send_text(text)
+                self.set_status("Text sent")
+            else:
+                files = {"audio": open(path, "rb")}
+                headers = {"X-OpenClaw-Token": token}
+                r = requests.post(url, files=files, headers=headers, timeout=30)
+                r.raise_for_status()
+                self.set_status("Uploaded successfully")
+
             os.remove(path)
         except Exception as e:
             self.set_status(f"Upload failed: {e}")
+
+    def run_local_whisper(self, wav_path: str):
+        try:
+            import subprocess, os, tempfile
+            base_dir = os.path.join(os.path.dirname(__file__), "whisper")
+            whisper_bin = os.path.join(base_dir, "whisper")
+            tiny_model = os.path.join(base_dir, "ggml-tiny.bin")
+            if not (os.path.exists(whisper_bin) and os.path.exists(tiny_model)):
+                return ""
+            out_base = os.path.join(tempfile.gettempdir(), f"whisper_{int(time.time())}")
+            proc = subprocess.run([whisper_bin, "-m", tiny_model, "-f", wav_path, "-otxt", "-of", out_base, "-l", "en"],
+                                 capture_output=True, text=True, timeout=120)
+            if proc.returncode != 0:
+                return ""
+            txt = out_base + ".txt"
+            if not os.path.exists(txt):
+                return ""
+            with open(txt, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except Exception:
+            return ""
+
+    def send_text(self, text: str):
+        try:
+            url = self.receiver.text().strip().replace("/ingest", "/ingest_text")
+            token = self.token.text().strip()
+            if not url or not token:
+                return
+            r = requests.post(url, json={"text": text}, headers={"X-OpenClaw-Token": token}, timeout=10)
+            r.raise_for_status()
+        except Exception:
+            pass
+
+    def download_model(self):
+        try:
+            import os, requests
+            base_dir = os.path.join(os.path.dirname(__file__), "whisper")
+            os.makedirs(base_dir, exist_ok=True)
+            url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
+            dest = os.path.join(base_dir, "ggml-base.bin")
+            self.set_status("Downloading base model…")
+            r = requests.get(url, stream=True, timeout=60)
+            r.raise_for_status()
+            with open(dest, "wb") as f:
+                for chunk in r.iter_content(chunk_size=1024*1024):
+                    if chunk:
+                        f.write(chunk)
+            self.set_status("Downloaded base model")
+        except Exception as e:
+            self.set_status(f"Download failed: {e}")
 
 app = QtWidgets.QApplication(sys.argv)
 window = MainWindow()
