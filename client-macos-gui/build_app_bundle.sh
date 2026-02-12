@@ -27,12 +27,12 @@ if [ ! -f "$WHISPER_BIN" ]; then
   make clean || true
   # x86_64 (disable Metal to avoid cross-arch metallib issues)
   CFLAGS="-O3 -arch x86_64" CXXFLAGS="-O3 -arch x86_64" LDFLAGS="-arch x86_64" \
-    GGML_METAL=OFF make -j2
+    WHISPER_METAL=OFF GGML_METAL=OFF make -j2
   cp "$WHISPER_SRC/main" "$WHISPER_DIR/whisper-x86_64"
   make clean || true
   # arm64
   CFLAGS="-O3 -arch arm64" CXXFLAGS="-O3 -arch arm64" LDFLAGS="-arch arm64" \
-    GGML_METAL=OFF make -j2
+    WHISPER_METAL=OFF GGML_METAL=OFF make -j2
   cp "$WHISPER_SRC/main" "$WHISPER_DIR/whisper-arm64"
   popd >/dev/null
 
