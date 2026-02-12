@@ -13,16 +13,29 @@ PLIST="$APP_DIR/Contents/Info.plist"
 
 mkdir -p "$ROOT_DIR/dist"
 
-# Fetch bundled whisper.cpp tiny (if missing)
+# Build bundled whisper.cpp tiny (if missing)
 WHISPER_DIR="$ROOT_DIR/dist/whisper"
 mkdir -p "$WHISPER_DIR"
 WHISPER_BIN="$WHISPER_DIR/whisper"
 WHISPER_MODEL="$WHISPER_DIR/ggml-tiny.bin"
 if [ ! -f "$WHISPER_BIN" ]; then
-  curl -L "https://github.com/ggerganov/whisper.cpp/releases/download/v1.6.2/whisper.cpp-1.6.2-macos-universal.zip" -o "$WHISPER_DIR/whisper.zip"
-  unzip -q -o "$WHISPER_DIR/whisper.zip" -d "$WHISPER_DIR"
-  rm -f "$WHISPER_DIR/whisper.zip"
-  # binary named 'whisper'
+  WHISPER_SRC="$ROOT_DIR/dist/whisper-src"
+  rm -rf "$WHISPER_SRC"
+  git clone --depth 1 https://github.com/ggml-org/whisper.cpp "$WHISPER_SRC"
+
+  pushd "$WHISPER_SRC" >/dev/null
+  make clean || true
+  # x86_64
+  CFLAGS="-O3 -arch x86_64" CXXFLAGS="-O3 -arch x86_64" LDFLAGS="-arch x86_64" make -j2
+  cp "$WHISPER_SRC/main" "$WHISPER_DIR/whisper-x86_64"
+  make clean || true
+  # arm64
+  CFLAGS="-O3 -arch arm64" CXXFLAGS="-O3 -arch arm64" LDFLAGS="-arch arm64" make -j2
+  cp "$WHISPER_SRC/main" "$WHISPER_DIR/whisper-arm64"
+  popd >/dev/null
+
+  /usr/bin/lipo -create "$WHISPER_DIR/whisper-x86_64" "$WHISPER_DIR/whisper-arm64" -output "$WHISPER_BIN"
+  chmod +x "$WHISPER_BIN"
 fi
 if [ ! -f "$WHISPER_MODEL" ]; then
   curl -L "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin" -o "$WHISPER_MODEL"
