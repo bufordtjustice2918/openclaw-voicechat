@@ -10,12 +10,16 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build pkg
+      - name: Build CLI pkg
         run: |
           chmod +x client-macos/build_pkg.sh
           ./client-macos/build_pkg.sh
-      - name: Upload pkg artifact
+      - name: Build GUI app
+        run: |
+          chmod +x client-macos-gui/build_app_bundle.sh
+          ./client-macos-gui/build_app_bundle.sh
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClawVoiceChat-pkg
-          path: dist/*.pkg
+          name: OpenClawVoiceChat-artifacts
+          path: dist/*

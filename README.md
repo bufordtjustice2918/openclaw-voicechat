@@ -63,13 +63,13 @@ curl -X POST http://127.0.0.1:8787/ingest \
 ```
 Then double‑click the `.pkg` to install (installs CLI to `/usr/local/bin/openclaw-voicechat`).
 
-**Optional App wrapper (shows in Applications):**
+**GUI App (shows in Applications):**
 ```bash
-./client-macos/build_app_wrapper.sh
+./client-macos-gui/build_app_bundle.sh
 # Outputs: ./dist/OpenClaw VoiceChat.app
 ```
 
-See `client-macos/README.md` for run + env details.
+See `client-macos-gui/README.md` for GUI app details.
 
 ---
 

@@ -11,13 +11,17 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build pkg
+      - name: Build CLI pkg
         run: |
           chmod +x client-macos/build_pkg.sh
           ./client-macos/build_pkg.sh
+      - name: Build GUI app
+        run: |
+          chmod +x client-macos-gui/build_app_bundle.sh
+          ./client-macos-gui/build_app_bundle.sh
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.pkg
+          files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
