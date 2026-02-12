@@ -18,5 +18,6 @@ cd openclaw-voicechat/client-macos-gui
 - **Input device** picker sets the system default input device.
 - **Fast mode (local whisper)** sends transcript instantly.
 - **Upload audio in background** is optional.
+- **Always‑listen** uses a local Python helper (Vosk + VAD + Whisper) for wake‑word.
 
 Mic permission will be requested on first run.

@@ -1,0 +1,4 @@
+vosk
+webrtcvad
+sounddevice
+requests

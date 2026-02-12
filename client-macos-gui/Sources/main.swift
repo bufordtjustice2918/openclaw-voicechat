@@ -32,10 +32,15 @@ final class AppState: ObservableObject {
     @Published var selectedDeviceId: AudioDeviceID? = nil
     @Published var fastModeLocalWhisper: Bool = true
     @Published var uploadAudioInBackground: Bool = false
+    @Published var alwaysListen: Bool = false
+    @Published var wakeWord: String = "buford"
+    @Published var silenceMs: String = "900"
 
     private var recorder: AVAudioRecorder?
     private var tempURL: URL?
     private var meterTimer: Timer?
+    private var helperProcess: Process?
+    private var helperPipe: Pipe?
 
     init() {
         loadEnvFile()
@@ -161,6 +166,44 @@ final class AppState: ObservableObject {
             status = "Uploading…"
             upload(fileURL: url)
         }
+    }
+
+    func startHelper() {
+        if helperProcess != nil { return }
+        let process = Process()
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        let scriptPath = Bundle.main.path(forResource: "voice_helper", ofType: "py")
+            ?? FileManager.default.currentDirectoryPath + "/helper/voice_helper.py"
+        process.launchPath = "/usr/bin/python3"
+        process.arguments = [scriptPath]
+        var env = ProcessInfo.processInfo.environment
+        env["RECEIVER_URL"] = receiverURL.replacingOccurrences(of: "/ingest", with: "/ingest_text")
+        env["OPENCLAW_TOKEN"] = token
+        env["WAKE_WORD"] = wakeWord
+        env["SILENCE_MS"] = silenceMs
+        process.environment = env
+        helperPipe = pipe
+        helperProcess = process
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] h in
+            let data = h.availableData
+            if data.count > 0, let line = String(data: data, encoding: .utf8) {
+                DispatchQueue.main.async {
+                    self?.status = "Helper: " + line.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+            }
+        }
+        try? process.run()
+        status = "Always‑listen enabled"
+    }
+
+    func stopHelper() {
+        helperPipe?.fileHandleForReading.readabilityHandler = nil
+        helperPipe = nil
+        helperProcess?.terminate()
+        helperProcess = nil
+        status = "Always‑listen stopped"
     }
 
     func startMeter() {
@@ -363,6 +406,25 @@ struct ContentView: View {
                 Button("Test Mic") { state.testMic() }
                 Toggle("Fast mode (local whisper)", isOn: $state.fastModeLocalWhisper)
                 Toggle("Upload audio in background", isOn: $state.uploadAudioInBackground)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Always‑listen (wake word)", isOn: $state.alwaysListen)
+                    .onChange(of: state.alwaysListen) { on in
+                        if on { state.startHelper() } else { state.stopHelper() }
+                    }
+                HStack {
+                    Text("Wake word")
+                    TextField("buford", text: $state.wakeWord)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 160)
+                    Text("Silence ms")
+                    TextField("900", text: $state.silenceMs)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                }
             }
 
             VStack(alignment: .leading, spacing: 6) {
