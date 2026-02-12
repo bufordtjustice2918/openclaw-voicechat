@@ -25,7 +25,7 @@ if [ ! -f "$WHISPER_BIN" ]; then
 
   pushd "$WHISPER_SRC" >/dev/null
   # x86_64 (disable Metal)
-  cmake -S . -B build-x86 -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF -DWHISPER_METAL=OFF -DCMAKE_OSX_ARCHITECTURES=x86_64
+  cmake -S . -B build-x86 -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF -DWHISPER_METAL=OFF -DCMAKE_OSX_ARCHITECTURES=x86_64 -DGGML_CPU_ALL_VARIANTS=OFF -DGGML_NATIVE=OFF
   cmake --build build-x86 --config Release
   if [ -f build-x86/bin/whisper-cli ]; then
     cp build-x86/bin/whisper-cli "$WHISPER_DIR/whisper-x86_64"
@@ -39,7 +39,7 @@ if [ ! -f "$WHISPER_BIN" ]; then
   fi
 
   # arm64
-  cmake -S . -B build-arm -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF -DWHISPER_METAL=OFF -DCMAKE_OSX_ARCHITECTURES=arm64
+  cmake -S . -B build-arm -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF -DWHISPER_METAL=OFF -DCMAKE_OSX_ARCHITECTURES=arm64 -DGGML_CPU_ALL_VARIANTS=OFF -DGGML_NATIVE=OFF
   cmake --build build-arm --config Release
   if [ -f build-arm/bin/whisper-cli ]; then
     cp build-arm/bin/whisper-cli "$WHISPER_DIR/whisper-arm64"
