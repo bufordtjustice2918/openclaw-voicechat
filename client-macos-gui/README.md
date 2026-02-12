@@ -16,7 +16,8 @@ cd openclaw-voicechat/client-macos-gui
 - **Test Mic** (records 2s + plays back, **no upload**).
 - **Recording level** meter updates while recording.
 - **Input device** picker sets the system default input device.
-- **Fast mode (local whisper)** sends transcript instantly.
+- **Fast mode (local whisper)** sends transcript instantly (bundled whisper.cpp tiny).
+- **Download larger model** pulls base model.
 - **Upload audio in background** is optional.
 - **Always‑listen** uses a local Python helper (Vosk + VAD + Whisper) for wake‑word.
 

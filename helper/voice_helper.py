@@ -58,20 +58,25 @@ def send_text(text):
 
 def run_whisper(wav_path):
     try:
-        # Requires `whisper` CLI on PATH
-        proc = subprocess.run(
-            ["whisper", "--model", "tiny", "--language", "en", "--output_format", "txt", "--output_dir", os.path.dirname(wav_path), wav_path],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-        if proc.returncode != 0:
-            return ""
-        txt_path = wav_path + ".txt"
-        if not os.path.exists(txt_path):
-            return ""
-        with open(txt_path, "r", encoding="utf-8") as f:
-            return f.read().strip()
+        whisper_bin = os.getenv("WHISPER_BIN", "")
+        whisper_model = os.getenv("WHISPER_MODEL", "")
+        if whisper_bin and whisper_model and os.path.exists(whisper_bin) and os.path.exists(whisper_model):
+            out_base = wav_path
+            proc = subprocess.run(
+                [whisper_bin, "-m", whisper_model, "-f", wav_path, "-otxt", "-of", out_base, "-l", "en"],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if proc.returncode != 0:
+                return ""
+            txt_path = out_base + ".txt"
+            if not os.path.exists(txt_path):
+                return ""
+            with open(txt_path, "r", encoding="utf-8") as f:
+                return f.read().strip()
+
+        return ""
     except Exception:
         return ""
 

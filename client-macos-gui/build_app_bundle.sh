@@ -13,6 +13,21 @@ PLIST="$APP_DIR/Contents/Info.plist"
 
 mkdir -p "$ROOT_DIR/dist"
 
+# Fetch bundled whisper.cpp tiny (if missing)
+WHISPER_DIR="$ROOT_DIR/dist/whisper"
+mkdir -p "$WHISPER_DIR"
+WHISPER_BIN="$WHISPER_DIR/whisper"
+WHISPER_MODEL="$WHISPER_DIR/ggml-tiny.bin"
+if [ ! -f "$WHISPER_BIN" ]; then
+  curl -L "https://github.com/ggerganov/whisper.cpp/releases/download/v1.6.2/whisper.cpp-1.6.2-macos-universal.zip" -o "$WHISPER_DIR/whisper.zip"
+  unzip -q -o "$WHISPER_DIR/whisper.zip" -d "$WHISPER_DIR"
+  rm -f "$WHISPER_DIR/whisper.zip"
+  # binary named 'whisper'
+fi
+if [ ! -f "$WHISPER_MODEL" ]; then
+  curl -L "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin" -o "$WHISPER_MODEL"
+fi
+
 pushd "$GUI_DIR" >/dev/null
 # Build universal binary (intel + apple silicon)
 swift build -c release --arch x86_64 --arch arm64
@@ -34,6 +49,12 @@ else
   echo "Universal binary not found" >&2
   exit 1
 fi
+
+# Bundle whisper assets
+mkdir -p "$RES_DIR/whisper"
+cp "$WHISPER_BIN" "$RES_DIR/whisper/whisper"
+cp "$WHISPER_MODEL" "$RES_DIR/whisper/ggml-tiny.bin"
+chmod +x "$RES_DIR/whisper/whisper"
 
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

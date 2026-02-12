@@ -22,6 +22,22 @@ struct InputDevice: Identifiable, Hashable {
 }
 
 final class AppState: ObservableObject {
+    func downloadModel(name: String) {
+        let modelsDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".openclaw-voicechat/models")
+        try? FileManager.default.createDirectory(at: modelsDir, withIntermediateDirectories: true)
+        let dest = modelsDir.appendingPathComponent(name)
+        let url = URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/\(name)")!
+        status = "Downloading \(name)…"
+        URLSession.shared.downloadTask(with: url) { [weak self] tmp, _, err in
+            DispatchQueue.main.async {
+                if let err = err { self?.status = "Download failed: \(err.localizedDescription)"; return }
+                guard let tmp = tmp else { self?.status = "Download failed"; return }
+                try? FileManager.default.removeItem(at: dest)
+                do { try FileManager.default.moveItem(at: tmp, to: dest); self?.status = "Downloaded \(name)" }
+                catch { self?.status = "Download failed" }
+            }
+        }.resume()
+    }
     @Published var receiverURL: String = "http://127.0.0.1:8787/ingest"
     @Published var token: String = ""
     @Published var status: String = "Idle"
@@ -116,15 +132,17 @@ final class AppState: ObservableObject {
         }
 
         let tempDir = FileManager.default.temporaryDirectory
-        let filename = UUID().uuidString + ".caf"
+        let filename = UUID().uuidString + ".wav"
         let url = tempDir.appendingPathComponent(filename)
         tempURL = url
 
         let settings: [String: Any] = [
-            AVFormatIDKey: kAudioFormatAppleIMA4,
-            AVSampleRateKey: 44100.0,
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: 16000.0,
             AVNumberOfChannelsKey: 1,
-            AVEncoderBitRateKey: 12800
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false
         ]
 
         do {
@@ -183,6 +201,9 @@ final class AppState: ObservableObject {
         env["OPENCLAW_TOKEN"] = token
         env["WAKE_WORD"] = wakeWord
         env["SILENCE_MS"] = silenceMs
+        let bundlePath = Bundle.main.resourcePath ?? ""
+        env["WHISPER_BIN"] = bundlePath + "/whisper/whisper"
+        env["WHISPER_MODEL"] = bundlePath + "/whisper/ggml-tiny.bin"
         process.environment = env
         helperPipe = pipe
         helperProcess = process
@@ -243,32 +264,27 @@ final class AppState: ObservableObject {
     }
 
     func runLocalWhisper(fileURL: URL) -> String? {
-        let which = Process()
-        which.launchPath = "/usr/bin/which"
-        which.arguments = ["whisper"]
-        let pipe = Pipe()
-        which.standardOutput = pipe
-        try? which.run()
-        which.waitUntilExit()
-        if which.terminationStatus != 0 { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let whisperPath = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if whisperPath == nil || whisperPath!.isEmpty { return nil }
+        // Prefer bundled whisper.cpp
+        let bundlePath = Bundle.main.resourcePath ?? ""
+        let whisperBin = bundlePath + "/whisper/whisper"
+        let tinyModel = bundlePath + "/whisper/ggml-tiny.bin"
 
         let tempDir = FileManager.default.temporaryDirectory
-        let outDir = tempDir.appendingPathComponent(UUID().uuidString)
-        try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
+        let outBase = tempDir.appendingPathComponent(UUID().uuidString).path
 
-        let proc = Process()
-        proc.launchPath = whisperPath
-        proc.arguments = ["--model", "tiny", "--language", "en", "--output_format", "txt", "--output_dir", outDir.path, fileURL.path]
-        try? proc.run()
-        proc.waitUntilExit()
-        if proc.terminationStatus != 0 { return nil }
+        if FileManager.default.fileExists(atPath: whisperBin) && FileManager.default.fileExists(atPath: tinyModel) {
+            let proc = Process()
+            proc.launchPath = whisperBin
+            proc.arguments = ["-m", tinyModel, "-f", fileURL.path, "-otxt", "-of", outBase, "-l", "en"]
+            try? proc.run()
+            proc.waitUntilExit()
+            if proc.terminationStatus != 0 { return nil }
+            let txtPath = outBase + ".txt"
+            let text = try? String(contentsOfFile: txtPath)
+            return text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
 
-        let txtPath = outDir.appendingPathComponent(fileURL.deletingPathExtension().lastPathComponent + ".txt")
-        let text = try? String(contentsOf: txtPath)
-        return text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return nil
     }
 
     func sendText(_ text: String) {
@@ -406,6 +422,10 @@ struct ContentView: View {
                 Button("Test Mic") { state.testMic() }
                 Toggle("Fast mode (local whisper)", isOn: $state.fastModeLocalWhisper)
                 Toggle("Upload audio in background", isOn: $state.uploadAudioInBackground)
+            }
+
+            HStack(spacing: 12) {
+                Button("Download larger model") { state.downloadModel(name: "ggml-base.bin") }
             }
 
             Divider()
