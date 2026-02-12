@@ -6,6 +6,9 @@ on:
       - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: macos-latest
@@ -15,16 +18,20 @@ jobs:
         run: |
           chmod +x client-macos-gui/build_app_bundle.sh
           ./client-macos-gui/build_app_bundle.sh
+      - name: Package app
+        run: |
+          mkdir -p dist
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent "dist/OpenClaw VoiceChat.app" "dist/OpenClawVoiceChat.zip"
       - name: Upload artifact (manual runs)
         if: ${{ github.ref_type != 'tag' }}
         uses: actions/upload-artifact@v4
         with:
           name: OpenClawVoiceChat-app
-          path: dist/*
+          path: dist/OpenClawVoiceChat.zip
       - name: Create GitHub Release (tagged)
         if: ${{ github.ref_type == 'tag' }}
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: dist/OpenClawVoiceChat.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
