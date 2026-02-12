@@ -104,8 +104,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         layout.addLayout(btns)
 
-        self.status = QtWidgets.QLabel("Status: Idle")
-        layout.addWidget(self.status)
+        self.log = QtWidgets.QTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setStyleSheet('background-color: #000; color: #fff; font-family: Menlo;')
+        layout.addWidget(self.log)
+        self.append_log('✅ Ready')
 
         self.setCentralWidget(central)
 
@@ -116,11 +119,15 @@ class MainWindow(QtWidgets.QMainWindow):
             if d['max_input_channels'] > 0:
                 self.deviceBox.addItem(f"{idx}: {d['name']}", idx)
 
+    def append_log(self, msg):
+        ts = QtCore.QDateTime.currentDateTime().toString('HH:mm:ss')
+        self.log.append(f'[{ts}] {msg}')
+
     def on_level(self, v):
         self.level.setValue(int(v * 100))
 
     def set_status(self, s):
-        self.status.setText(f"Status: {s}")
+        self.append_log(f'📝 {s}')
 
     def toggle_record(self):
         if self.recordBtn.text() == "Record":
@@ -174,7 +181,8 @@ class MainWindow(QtWidgets.QMainWindow):
             whisper_bin = os.path.join(base_dir, "whisper")
             tiny_model = os.path.join(base_dir, "ggml-tiny.bin")
             if not (os.path.exists(whisper_bin) and os.path.exists(tiny_model)):
-                return ""
+                self.set_status('❌ Bundled whisper missing')
+                return ''
             out_base = os.path.join(tempfile.gettempdir(), f"whisper_{int(time.time())}")
             proc = subprocess.run([whisper_bin, "-m", tiny_model, "-f", wav_path, "-otxt", "-of", out_base, "-l", "en"],
                                  capture_output=True, text=True, timeout=120)
@@ -198,6 +206,13 @@ class MainWindow(QtWidgets.QMainWindow):
             r.raise_for_status()
         except Exception:
             pass
+
+    def start_helper(self):
+        helper = __import__('os').path.join(__import__('os').path.dirname(__file__), 'helper', 'voice_helper.py')
+        if not __import__('os').path.exists(helper):
+            self.set_status('❌ helper/voice_helper.py missing')
+            return
+        self.set_status('🚧 Always-listen not wired yet')
 
     def download_model(self):
         try:
