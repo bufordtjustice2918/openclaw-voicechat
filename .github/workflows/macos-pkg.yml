@@ -1,0 +1,21 @@
+name: macOS pkg build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-pkg:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build pkg
+        run: |
+          chmod +x client-macos/build_pkg.sh
+          ./client-macos/build_pkg.sh
+      - name: Upload pkg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenClawVoiceChat-pkg
+          path: dist/*.pkg
