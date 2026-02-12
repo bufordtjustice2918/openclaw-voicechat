@@ -28,7 +28,8 @@ class Recorder(QtCore.QObject):
             if len(indata) > 0:
                 # indata is bytes-like int16
                 import array
-                arr = array.array('h', indata)
+                arr = array.array('h')
+                    arr.frombytes(indata)
                 if len(arr):
                     rms = (sum(x*x for x in arr) / len(arr)) ** 0.5
                     level = min(1.0, rms / 2000.0)
@@ -181,7 +182,7 @@ class MainWindow(QtWidgets.QMainWindow):
             whisper_bin = os.path.join(base_dir, "whisper")
             tiny_model = os.path.join(base_dir, "ggml-tiny.bin")
             if not (os.path.exists(whisper_bin) and os.path.exists(tiny_model)):
-                self.set_status('❌ Bundled whisper missing')
+                self.set_status('❌ Bundled whisper missing (run build_app_wrapper.sh)')
                 return ''
             out_base = os.path.join(tempfile.gettempdir(), f"whisper_{int(time.time())}")
             proc = subprocess.run([whisper_bin, "-m", tiny_model, "-f", wav_path, "-otxt", "-of", out_base, "-l", "en"],
