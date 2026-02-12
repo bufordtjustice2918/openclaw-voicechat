@@ -38,6 +38,15 @@ final class AppState: ObservableObject {
     init() {
         loadEnvFile()
         refreshInputDevices()
+        requestMicAccess()
+    }
+
+    func requestMicAccess() {
+        AVCaptureDevice.requestAccess(for: .audio) { granted in
+            DispatchQueue.main.async {
+                self.status = granted ? "Mic permission granted" : "Mic permission denied"
+            }
+        }
     }
 
     func loadEnvFile() {
@@ -92,6 +101,12 @@ final class AppState: ObservableObject {
         if isRecording { return }
         status = "Recording…"
         isRecording = true
+
+        if AVCaptureDevice.authorizationStatus(for: .audio) != .authorized {
+            status = "Mic permission not granted"
+            isRecording = false
+            return
+        }
 
         let tempDir = FileManager.default.temporaryDirectory
         let filename = UUID().uuidString + ".caf"
@@ -157,11 +172,16 @@ final class AppState: ObservableObject {
         status = "Mic test: recording 2s…"
         startRecording()
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            self.stopRecording()
+            self.isRecording = false
+            self.recorder?.stop()
+            self.recorder = nil
+            self.stopMeter()
             if let url = self.tempURL {
                 if let player = try? AVAudioPlayer(contentsOf: url) {
                     player.play()
                     self.status = "Mic test: playback"
+                } else {
+                    self.status = "Mic test: playback failed"
                 }
             }
         }
@@ -237,10 +257,13 @@ struct ContentView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Input Device")
-                Picker("Input Device", selection: $state.selectedDeviceId) {
-                    ForEach(state.inputDevices) { device in
-                        Text(device.name).tag(Optional(device.id))
+                HStack {
+                    Picker("Input Device", selection: $state.selectedDeviceId) {
+                        ForEach(state.inputDevices) { device in
+                            Text(device.name).tag(Optional(device.id))
+                        }
                     }
+                    Button("Refresh") { state.refreshInputDevices() }
                 }
                 .onChange(of: state.selectedDeviceId) { newValue in
                     if let id = newValue { state.setDefaultInputDevice(id) }

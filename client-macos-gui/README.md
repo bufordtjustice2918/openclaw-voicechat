@@ -13,7 +13,7 @@ cd openclaw-voicechat/client-macos-gui
 - Receiver URL and Token are editable in the UI.
 - Click **Save Settings** to persist to `~/.openclaw-voicechat.env`.
 - Click **Record** to start, **Stop & Upload** to send.
-- **Test Mic** (records 2s + plays back) and **Test Speaker** (beep).
+- **Test Mic** (records 2s + plays back, **no upload**) and **Test Speaker** (beep).
 - **Recording level** meter updates while recording.
 - **Input device** picker sets the system default input device.
 
