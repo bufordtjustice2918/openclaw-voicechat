@@ -1,5 +1,7 @@
 import SwiftUI
 import AVFoundation
+import AppKit
+import AudioToolbox
 
 @main
 struct OpenClawVoiceChatGUIApp: App {
@@ -9,9 +11,14 @@ struct OpenClawVoiceChatGUIApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(state)
-                .frame(minWidth: 520, minHeight: 360)
+                .frame(minWidth: 620, minHeight: 420)
         }
     }
+}
+
+struct InputDevice: Identifiable, Hashable {
+    let id: AudioDeviceID
+    let name: String
 }
 
 final class AppState: ObservableObject {
@@ -20,12 +27,17 @@ final class AppState: ObservableObject {
     @Published var status: String = "Idle"
     @Published var isRecording: Bool = false
     @Published var lastUpload: String = ""
+    @Published var level: Double = 0.0
+    @Published var inputDevices: [InputDevice] = []
+    @Published var selectedDeviceId: AudioDeviceID? = nil
 
     private var recorder: AVAudioRecorder?
     private var tempURL: URL?
+    private var meterTimer: Timer?
 
     init() {
         loadEnvFile()
+        refreshInputDevices()
     }
 
     func loadEnvFile() {
@@ -49,6 +61,31 @@ final class AppState: ObservableObject {
         let path = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".openclaw-voicechat.env")
         let content = "export RECEIVER_URL=\"\(receiverURL)\"\nexport OPENCLAW_TOKEN=\"\(token)\"\n"
         try? content.write(to: path, atomically: true, encoding: .utf8)
+        status = "Settings saved"
+    }
+
+    func refreshInputDevices() {
+        inputDevices = listInputDevices()
+        if selectedDeviceId == nil {
+            selectedDeviceId = inputDevices.first?.id
+        }
+    }
+
+    func setDefaultInputDevice(_ deviceId: AudioDeviceID) {
+        var deviceID = deviceId
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectSetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, size, &deviceID)
+        if status == noErr {
+            selectedDeviceId = deviceId
+            self.status = "Input device set"
+        } else {
+            self.status = "Failed to set input device (\(status))"
+        }
     }
 
     func startRecording() {
@@ -70,7 +107,9 @@ final class AppState: ObservableObject {
 
         do {
             recorder = try AVAudioRecorder(url: url, settings: settings)
+            recorder?.isMeteringEnabled = true
             recorder?.record()
+            startMeter()
         } catch {
             status = "Failed to start recording: \(error.localizedDescription)"
             isRecording = false
@@ -82,6 +121,7 @@ final class AppState: ObservableObject {
         isRecording = false
         recorder?.stop()
         recorder = nil
+        stopMeter()
         status = "Uploading…"
 
         guard let url = tempURL else {
@@ -89,6 +129,42 @@ final class AppState: ObservableObject {
             return
         }
         upload(fileURL: url)
+    }
+
+    func startMeter() {
+        meterTimer?.invalidate()
+        meterTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            guard let self = self, let recorder = self.recorder else { return }
+            recorder.updateMeters()
+            let power = recorder.averagePower(forChannel: 0) // -160..0
+            let normalized = max(0.0, (power + 60) / 60) // 0..1
+            self.level = normalized
+        }
+    }
+
+    func stopMeter() {
+        meterTimer?.invalidate()
+        meterTimer = nil
+        level = 0
+    }
+
+    func testSpeaker() {
+        NSSound.beep()
+        status = "Speaker test: beep"
+    }
+
+    func testMic() {
+        status = "Mic test: recording 2s…"
+        startRecording()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            self.stopRecording()
+            if let url = self.tempURL {
+                if let player = try? AVAudioPlayer(contentsOf: url) {
+                    player.play()
+                    self.status = "Mic test: playback"
+                }
+            }
+        }
     }
 
     func upload(fileURL: URL) {
@@ -143,8 +219,11 @@ struct ContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("OpenClaw VoiceChat")
-                .font(.largeTitle)
+            HStack(spacing: 8) {
+                Image(systemName: "waveform")
+                Text("OpenClaw VoiceChat")
+                    .font(.largeTitle)
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Receiver URL")
@@ -154,6 +233,18 @@ struct ContentView: View {
                 Text("Token")
                 SecureField("OPENCLAW_TOKEN", text: $state.token)
                     .textFieldStyle(.roundedBorder)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Input Device")
+                Picker("Input Device", selection: $state.selectedDeviceId) {
+                    ForEach(state.inputDevices) { device in
+                        Text(device.name).tag(Optional(device.id))
+                    }
+                }
+                .onChange(of: state.selectedDeviceId) { _, newValue in
+                    if let id = newValue { state.setDefaultInputDevice(id) }
+                }
             }
 
             HStack(spacing: 12) {
@@ -170,6 +261,16 @@ struct ContentView: View {
                 }
             }
 
+            HStack(spacing: 12) {
+                Button("Test Mic") { state.testMic() }
+                Button("Test Speaker") { state.testSpeaker() }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Recording Level")
+                ProgressView(value: state.level)
+            }
+
             Text("Status: \(state.status)")
                 .font(.headline)
 
@@ -182,4 +283,65 @@ struct ContentView: View {
         }
         .padding(20)
     }
+}
+
+// MARK: - CoreAudio helpers
+func listInputDevices() -> [InputDevice] {
+    var propertyAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDevices,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+
+    var dataSize: UInt32 = 0
+    var status = AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &propertyAddress, 0, nil, &dataSize)
+    if status != noErr { return [] }
+
+    let deviceCount = Int(dataSize) / MemoryLayout<AudioDeviceID>.size
+    var deviceIDs = [AudioDeviceID](repeating: 0, count: deviceCount)
+    status = AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &propertyAddress, 0, nil, &dataSize, &deviceIDs)
+    if status != noErr { return [] }
+
+    var inputs: [InputDevice] = []
+    for id in deviceIDs {
+        if isInputDevice(id) {
+            let name = getDeviceName(id) ?? "Unknown"
+            inputs.append(InputDevice(id: id, name: name))
+        }
+    }
+    return inputs
+}
+
+func isInputDevice(_ id: AudioDeviceID) -> Bool {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyStreamConfiguration,
+        mScope: kAudioDevicePropertyScopeInput,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    var dataSize: UInt32 = 0
+    let status = AudioObjectGetPropertyDataSize(id, &address, 0, nil, &dataSize)
+    if status != noErr { return false }
+    let bufferList = UnsafeMutablePointer<AudioBufferList>.allocate(capacity: Int(dataSize))
+    defer { bufferList.deallocate() }
+    var size = dataSize
+    let status2 = AudioObjectGetPropertyData(id, &address, 0, nil, &size, bufferList)
+    if status2 != noErr { return false }
+    let buffers = UnsafeMutableAudioBufferListPointer(bufferList)
+    for buffer in buffers {
+        if buffer.mNumberChannels > 0 { return true }
+    }
+    return false
+}
+
+func getDeviceName(_ id: AudioDeviceID) -> String? {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioObjectPropertyName,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain
+    )
+    var cfName: CFString = "" as CFString
+    var dataSize = UInt32(MemoryLayout<CFString>.size)
+    let status = AudioObjectGetPropertyData(id, &address, 0, nil, &dataSize, &cfName)
+    if status != noErr { return nil }
+    return cfName as String
 }
