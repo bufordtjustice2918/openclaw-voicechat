@@ -24,16 +24,33 @@ if [ ! -f "$WHISPER_BIN" ]; then
   git clone --depth 1 https://github.com/ggml-org/whisper.cpp "$WHISPER_SRC"
 
   pushd "$WHISPER_SRC" >/dev/null
-  make clean || true
-  # x86_64 (disable Metal to avoid cross-arch metallib issues)
-  CFLAGS="-O3 -arch x86_64" CXXFLAGS="-O3 -arch x86_64" LDFLAGS="-arch x86_64" \
-    WHISPER_METAL=OFF GGML_METAL=OFF make -j2
-  cp "$WHISPER_SRC/main" "$WHISPER_DIR/whisper-x86_64"
-  make clean || true
+  # x86_64 (disable Metal)
+  cmake -S . -B build-x86 -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF -DWHISPER_METAL=OFF -DCMAKE_OSX_ARCHITECTURES=x86_64
+  cmake --build build-x86 --config Release
+  if [ -f build-x86/bin/whisper-cli ]; then
+    cp build-x86/bin/whisper-cli "$WHISPER_DIR/whisper-x86_64"
+  elif [ -f build-x86/bin/main ]; then
+    cp build-x86/bin/main "$WHISPER_DIR/whisper-x86_64"
+  elif [ -f build-x86/main ]; then
+    cp build-x86/main "$WHISPER_DIR/whisper-x86_64"
+  else
+    echo "whisper binary not found (x86_64)" >&2
+    exit 1
+  fi
+
   # arm64
-  CFLAGS="-O3 -arch arm64" CXXFLAGS="-O3 -arch arm64" LDFLAGS="-arch arm64" \
-    WHISPER_METAL=OFF GGML_METAL=OFF make -j2
-  cp "$WHISPER_SRC/main" "$WHISPER_DIR/whisper-arm64"
+  cmake -S . -B build-arm -DCMAKE_BUILD_TYPE=Release -DGGML_METAL=OFF -DWHISPER_METAL=OFF -DCMAKE_OSX_ARCHITECTURES=arm64
+  cmake --build build-arm --config Release
+  if [ -f build-arm/bin/whisper-cli ]; then
+    cp build-arm/bin/whisper-cli "$WHISPER_DIR/whisper-arm64"
+  elif [ -f build-arm/bin/main ]; then
+    cp build-arm/bin/main "$WHISPER_DIR/whisper-arm64"
+  elif [ -f build-arm/main ]; then
+    cp build-arm/main "$WHISPER_DIR/whisper-arm64"
+  else
+    echo "whisper binary not found (arm64)" >&2
+    exit 1
+  fi
   popd >/dev/null
 
   /usr/bin/lipo -create "$WHISPER_DIR/whisper-x86_64" "$WHISPER_DIR/whisper-arm64" -output "$WHISPER_BIN"
