@@ -14,12 +14,17 @@ PLIST="$APP_DIR/Contents/Info.plist"
 mkdir -p "$ROOT_DIR/dist"
 
 pushd "$GUI_DIR" >/dev/null
-swift build -c release
+# Build universal binary (intel + apple silicon)
+swift build -c release --arch x86_64 --arch arm64
 popd >/dev/null
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RES_DIR"
-cp "$BUILD_DIR/$BIN_NAME" "$MACOS_DIR/$BIN_NAME"
+# Combine binaries
+ARM_BIN="$GUI_DIR/.build/arm64-apple-macosx/release/$BIN_NAME"
+X86_BIN="$GUI_DIR/.build/x86_64-apple-macosx/release/$BIN_NAME"
+UNIVERSAL_BIN="$MACOS_DIR/$BIN_NAME"
+/usr/bin/lipo -create "$ARM_BIN" "$X86_BIN" -output "$UNIVERSAL_BIN"
 
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
