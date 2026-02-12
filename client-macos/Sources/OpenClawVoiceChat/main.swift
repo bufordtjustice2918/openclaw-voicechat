@@ -127,17 +127,17 @@ let callback: CGEventTapCallBack = { proxy, type, event, refcon in
 }
 
 let refcon = Unmanaged.passUnretained(recorder).toOpaque()
-if let eventTap = CGEventTapCreate(
-    .cgSessionEventTap,
-    .headInsertEventTap,
-    .defaultTap,
-    CGEventMask(eventMask),
-    callback,
-    refcon
+if let eventTap = CGEvent.tapCreate(
+    tap: .cgSessionEventTap,
+    place: .headInsertEventTap,
+    options: .defaultTap,
+    eventsOfInterest: CGEventMask(eventMask),
+    callback: callback,
+    userInfo: refcon
 ) {
     let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)
     CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
-    CGEventTapEnable(eventTap, true)
+    CGEvent.tapEnable(tap: eventTap, enable: true)
     print("Push‑to‑talk running. Hold keyCode \(keyCode) to record.")
     CFRunLoopRun()
 } else {
