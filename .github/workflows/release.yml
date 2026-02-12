@@ -16,22 +16,26 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Python GUI app (macOS)
         run: |
-          python3 -m venv python-gui/.venv
-          source python-gui/.venv/bin/activate
-          pip install -r python-gui/requirements.txt
-          # placeholder: package with pyinstaller later
           mkdir -p dist
+          # create app wrapper
+          chmod +x python-gui/build_app_wrapper.sh
+          ./python-gui/build_app_wrapper.sh
+          # package tgz
           tar -czf dist/OpenClawVoiceChat-pygui.tgz python-gui
       - name: Upload artifact (manual runs)
         if: ${{ github.ref_type != 'tag' }}
         uses: actions/upload-artifact@v4
         with:
           name: OpenClawVoiceChat-pygui
-          path: dist/OpenClawVoiceChat-pygui.tgz
+          path: |
+            dist/OpenClawVoiceChat-pygui.tgz
+            dist/OpenClaw VoiceChat.app
       - name: Create GitHub Release (tagged)
         if: ${{ github.ref_type == 'tag' }}
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/OpenClawVoiceChat-pygui.tgz
+          files: |
+            dist/OpenClawVoiceChat-pygui.tgz
+            dist/OpenClaw VoiceChat.app
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

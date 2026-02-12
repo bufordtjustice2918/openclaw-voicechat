@@ -2,12 +2,21 @@
 
 Python GUI client (macOS-first), with local whisper + model download.
 
+## Run (one‑click)
+Double‑click `run.command` (creates venv + installs deps + runs).
+
 ## Run (dev)
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python app.py
+```
+
+## macOS App Wrapper
+```bash
+./build_app_wrapper.sh
+# Outputs: ../dist/OpenClaw VoiceChat.app
 ```
 
 ## Features
