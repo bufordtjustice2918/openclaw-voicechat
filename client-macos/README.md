@@ -25,6 +25,21 @@ export PTT_KEY_CODE=61
 ./.build/release/openclaw-voicechat
 ```
 
+## App wrapper (shows in Applications)
+```bash
+cd openclaw-voicechat/client-macos
+./build_app_wrapper.sh
+# Outputs: ../dist/OpenClaw VoiceChat.app
+```
+
+Tip: create `~/.openclaw-voicechat.env` with:
+```
+export RECEIVER_URL="http://127.0.0.1:8787/ingest"
+export OPENCLAW_TOKEN="..."
+export PTT_KEY_CODE=61
+```
+The app wrapper will source it automatically.
+
 ## Permissions
 - **Microphone** access will be requested on first run.
 - **Accessibility** permissions are required for global hotkeys.
