@@ -56,7 +56,14 @@ curl -X POST http://127.0.0.1:8787/ingest \
 ---
 
 ## macOS Push‑to‑Talk Client
-See `client-macos/README.md`.
+**Easy installer build (macOS):**
+```bash
+./build_macos_pkg.sh
+# Outputs: ./dist/OpenClawVoiceChat-0.1.0.pkg
+```
+Then double‑click the `.pkg` to install.
+
+See `client-macos/README.md` for dev run details.
 
 ---
 
