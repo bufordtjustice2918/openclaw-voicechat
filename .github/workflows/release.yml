@@ -11,10 +11,6 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build CLI pkg
-        run: |
-          chmod +x client-macos/build_pkg.sh
-          ./client-macos/build_pkg.sh
       - name: Build GUI app
         run: |
           chmod +x client-macos-gui/build_app_bundle.sh
