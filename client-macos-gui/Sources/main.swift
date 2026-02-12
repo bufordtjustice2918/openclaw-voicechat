@@ -163,11 +163,6 @@ final class AppState: ObservableObject {
         level = 0
     }
 
-    func testSpeaker() {
-        NSSound.beep()
-        status = "Speaker test: beep"
-    }
-
     func testMic() {
         status = "Mic test: recording 2s…"
         startRecording()
@@ -286,7 +281,6 @@ struct ContentView: View {
 
             HStack(spacing: 12) {
                 Button("Test Mic") { state.testMic() }
-                Button("Test Speaker") { state.testSpeaker() }
             }
 
             VStack(alignment: .leading, spacing: 6) {
