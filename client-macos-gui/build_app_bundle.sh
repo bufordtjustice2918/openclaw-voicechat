@@ -20,11 +20,20 @@ popd >/dev/null
 
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RES_DIR"
-# Combine binaries
+# Combine binaries (Swift may emit a universal binary directly)
+UNIVERSAL_BIN="$MACOS_DIR/$BIN_NAME"
+APPLE_UNIVERSAL="$GUI_DIR/.build/apple/Products/Release/$BIN_NAME"
 ARM_BIN="$GUI_DIR/.build/arm64-apple-macosx/release/$BIN_NAME"
 X86_BIN="$GUI_DIR/.build/x86_64-apple-macosx/release/$BIN_NAME"
-UNIVERSAL_BIN="$MACOS_DIR/$BIN_NAME"
-/usr/bin/lipo -create "$ARM_BIN" "$X86_BIN" -output "$UNIVERSAL_BIN"
+
+if [ -f "$APPLE_UNIVERSAL" ]; then
+  cp "$APPLE_UNIVERSAL" "$UNIVERSAL_BIN"
+elif [ -f "$ARM_BIN" ] && [ -f "$X86_BIN" ]; then
+  /usr/bin/lipo -create "$ARM_BIN" "$X86_BIN" -output "$UNIVERSAL_BIN"
+else
+  echo "Universal binary not found" >&2
+  exit 1
+fi
 
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
