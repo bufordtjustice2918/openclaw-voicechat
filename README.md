@@ -55,13 +55,16 @@ curl -X POST http://127.0.0.1:8787/ingest \
 
 ---
 
-## macOS GUI App (only)
+## Python GUI App (PySide6)
 ```bash
-./client-macos-gui/build_app_bundle.sh
-# Outputs: ./dist/OpenClaw VoiceChat.app
+cd python-gui
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
 ```
 
-See `client-macos-gui/README.md` for GUI app details.
+See `python-gui/README.md` for details.
 
 ---
 

@@ -14,24 +14,24 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build GUI app
+      - name: Build Python GUI app (macOS)
         run: |
-          chmod +x client-macos-gui/build_app_bundle.sh
-          ./client-macos-gui/build_app_bundle.sh
-      - name: Package app
-        run: |
+          python3 -m venv python-gui/.venv
+          source python-gui/.venv/bin/activate
+          pip install -r python-gui/requirements.txt
+          # placeholder: package with pyinstaller later
           mkdir -p dist
-          /usr/bin/ditto -c -k --sequesterRsrc --keepParent "dist/OpenClaw VoiceChat.app" "dist/OpenClawVoiceChat.zip"
+          tar -czf dist/OpenClawVoiceChat-pygui.tgz python-gui
       - name: Upload artifact (manual runs)
         if: ${{ github.ref_type != 'tag' }}
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClawVoiceChat-app
-          path: dist/OpenClawVoiceChat.zip
+          name: OpenClawVoiceChat-pygui
+          path: dist/OpenClawVoiceChat-pygui.tgz
       - name: Create GitHub Release (tagged)
         if: ${{ github.ref_type == 'tag' }}
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/OpenClawVoiceChat.zip
+          files: dist/OpenClawVoiceChat-pygui.tgz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
