@@ -42,6 +42,8 @@ cat > "$PLIST" <<EOF
   <string>APPL</string>
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>OpenClaw VoiceChat needs microphone access to record and upload your voice clips.</string>
 </dict>
 </plist>
 EOF
