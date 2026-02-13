@@ -113,8 +113,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.modelStatus = QtWidgets.QLabel("Model: tiny")
         self.hotkey = QtWidgets.QLineEdit("Space")
         self.hotkeyStatus = QtWidgets.QLabel("Hotkey: idle")
+        self.hotkeyLight = QtWidgets.QLabel("●")
+        self.hotkeyLight.setStyleSheet("color: #c00; font-size: 16px;")
         self.hotkeyStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
         self.wakeStatus = QtWidgets.QLabel("Wake: idle")
+        self.wakeLight = QtWidgets.QLabel("●")
+        self.wakeLight.setStyleSheet("color: #c00; font-size: 16px;")
         self.wakeStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
         self.modelStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
 
@@ -230,6 +234,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.recordBtn.text() == 'Record':
             self.hotkeyStatus.setText('Hotkey: down')
             self.hotkeyStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;')
+            self.hotkeyLight.setStyleSheet('color: #0a0; font-size: 16px;')
             self.set_status('␣ Hotkey down: recording')
             self.toggle_record()
 
@@ -237,6 +242,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.recordBtn.text() != 'Record':
             self.hotkeyStatus.setText('Hotkey: idle')
             self.hotkeyStatus.setStyleSheet('color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;')
+            self.hotkeyLight.setStyleSheet('color: #c00; font-size: 16px;')
             self.set_status('␣ Hotkey up: send')
             self.toggle_record()
 
@@ -344,14 +350,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 def cb(indata, frames, time_info, status):
                     q.put(bytes(indata))
                 with sd.RawInputStream(samplerate=16000, channels=1, dtype='int16', callback=cb):
-                    self.wakeStatus.setText('Wake: listening'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.set_status('🟢 Listening for wake word…')
+                    self.wakeStatus.setText('Wake: listening'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.set_status('🟢 Listening for wake word…')
                     listening = True
                     triggered = False
                     frames = []
                     silence = 0
                     frame_bytes = int(16000*0.03*2)
-                    silence_frames = 15
-                    max_frames = int(16000 * 8)  # ~8s cap
+                    silence_frames = 12
+                    max_frames = int(16000 * 10)  # ~10s cap
                     while self.alwaysListen.isChecked():
                         data = q.get()
                         if listening and rec.AcceptWaveform(data):
@@ -362,7 +368,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                     listening = False
                                     frames = []
                                     silence = 0
-                                    self.wakeStatus.setText('Wake: recording'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.set_status('🎙️ Wake word detected')
+                                    self.wakeStatus.setText('Wake: recording'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.set_status('🎙️ Wake word detected')
                             except Exception:
                                 pass
                         if triggered:
@@ -383,7 +389,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                     arr.frombytes(frame)
                                     if len(arr) > 0:
                                         energy = sum(x*x for x in arr) / len(arr)
-                                        if energy > 5000:
+                                        if energy > 1500:
                                             silence = 0
                                         else:
                                             silence += 1
@@ -396,7 +402,10 @@ class MainWindow(QtWidgets.QMainWindow):
                                     triggered = False
                                     listening = True
                                     audio = b"".join(frames)
-                                    self.set_status("📤 Wake send")
+                                    if len(audio) == 0:
+                                        self.set_status("⚠️ Wake captured no audio")
+                                    else:
+                                        self.set_status("📤 Wake send")
                                     threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start()
                                     frames = []
                                     silence = 0
