@@ -114,11 +114,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.hotkey = QtWidgets.QLineEdit("Space")
         self.hotkeyStatus = QtWidgets.QLabel("Hotkey: idle")
         self.hotkeyLight = QtWidgets.QLabel("●")
-        self.hotkeyLight.setStyleSheet("color: #c00; font-size: 16px;")
+        self.hotkeyLight.setStyleSheet("color: #c00; font-size: 20px;")
         self.hotkeyStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
         self.wakeStatus = QtWidgets.QLabel("Wake: idle")
         self.wakeLight = QtWidgets.QLabel("●")
-        self.wakeLight.setStyleSheet("color: #c00; font-size: 16px;")
+        self.wakeLight.setStyleSheet("color: #c00; font-size: 20px;")
         self.wakeStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
         self.modelStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
 
@@ -159,6 +159,15 @@ class MainWindow(QtWidgets.QMainWindow):
         btns.addWidget(self.downloadBtn)
 
         layout.addLayout(btns)
+
+        statusRow = QtWidgets.QHBoxLayout()
+        statusRow.addWidget(QtWidgets.QLabel('Status Lights:'))
+        statusRow.addWidget(self.hotkeyLight)
+        statusRow.addWidget(QtWidgets.QLabel('Hotkey'))
+        statusRow.addWidget(self.wakeLight)
+        statusRow.addWidget(QtWidgets.QLabel('Wake'))
+        statusRow.addStretch(1)
+        layout.addLayout(statusRow)
 
         self.log = QtWidgets.QTextEdit()
         self.log.setReadOnly(True)
