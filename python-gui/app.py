@@ -7,7 +7,6 @@ import requests
 import os
 import json
 import vosk
-import webrtcvad
 from PySide6 import QtWidgets, QtCore
 import sounddevice as sd
 
@@ -285,6 +284,11 @@ class MainWindow(QtWidgets.QMainWindow):
                     return
                 model = vosk.Model(model_path)
                 rec = vosk.KaldiRecognizer(model, 16000, f'["{self.wakeWord.text().strip().lower()}"]')
+                try:
+                    import webrtcvad
+                except Exception as e:
+                    self.set_status(f"❌ webrtcvad missing: {e}")
+                    return
                 vad = webrtcvad.Vad(2)
                 q = queue.Queue()
                 def cb(indata, frames, time_info, status):
