@@ -119,6 +119,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wakeStatus = QtWidgets.QLabel("Wake: idle")
         self.wakeLight = QtWidgets.QLabel("●")
         self.wakeLight.setStyleSheet("color: #c00; font-size: 20px;")
+        self.wakeDetectedLight = QtWidgets.QLabel("●")
+        self.wakeDetectedLight.setStyleSheet("color: #c00; font-size: 20px;")
+        self.recordLight = QtWidgets.QLabel("●")
+        self.recordLight.setStyleSheet("color: #c00; font-size: 20px;")
         self.wakeStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
         self.modelStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
 
@@ -165,7 +169,11 @@ class MainWindow(QtWidgets.QMainWindow):
         statusRow.addWidget(self.hotkeyLight)
         statusRow.addWidget(QtWidgets.QLabel('Hotkey'))
         statusRow.addWidget(self.wakeLight)
-        statusRow.addWidget(QtWidgets.QLabel('Wake'))
+        statusRow.addWidget(QtWidgets.QLabel('Wake listening'))
+        statusRow.addWidget(self.wakeDetectedLight)
+        statusRow.addWidget(QtWidgets.QLabel('Wake detected'))
+        statusRow.addWidget(self.recordLight)
+        statusRow.addWidget(QtWidgets.QLabel('Recording'))
         statusRow.addStretch(1)
         layout.addLayout(statusRow)
 
@@ -259,9 +267,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.recordBtn.text() == "Record":
             device = self.deviceBox.currentData()
             self.recorder.start(device=device)
+            self.recordLight.setStyleSheet("color: #0a0; font-size: 20px;")
             self.recordBtn.setText("Stop & Send")
         else:
             audio = self.recorder.stop()
+            self.recordLight.setStyleSheet("color: #c00; font-size: 20px;")
             self.recordBtn.setText("Record")
             if audio:
                 threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start()
