@@ -286,10 +286,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 rec = vosk.KaldiRecognizer(model, 16000, f'["{self.wakeWord.text().strip().lower()}"]')
                 try:
                     import webrtcvad
+                    vad = webrtcvad.Vad(2)
+                    use_webrtcvad = True
                 except Exception as e:
-                    self.set_status(f"❌ webrtcvad missing: {e}")
-                    return
-                vad = webrtcvad.Vad(2)
+                    self.set_status(f"⚠️ webrtcvad unavailable, using energy VAD: {e}")
+                    use_webrtcvad = False
+                    vad = None
                 q = queue.Queue()
                 def cb(indata, frames, time_info, status):
                     q.put(bytes(indata))
@@ -320,10 +322,22 @@ class MainWindow(QtWidgets.QMainWindow):
                                 if len(frame) < frame_bytes:
                                     continue
                                 frames.append(frame)
-                                if vad.is_speech(frame, 16000):
-                                    silence = 0
+                                if use_webrtcvad:
+                                    if vad.is_speech(frame, 16000):
+                                        silence = 0
+                                    else:
+                                        silence += 1
                                 else:
-                                    silence += 1
+                                    # energy-based VAD fallback
+                                    import array
+                                    arr = array.array('h')
+                                    arr.frombytes(frame)
+                                    if len(arr) > 0:
+                                        energy = sum(x*x for x in arr) / len(arr)
+                                        if energy > 5000:
+                                            silence = 0
+                                        else:
+                                            silence += 1
                                 if silence >= silence_frames:
                                     triggered = False
                                     listening = True
