@@ -4,6 +4,8 @@ import wave
 import queue
 import threading
 import requests
+import os
+import json
 from PySide6 import QtWidgets, QtCore
 import sounddevice as sd
 
