@@ -162,10 +162,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.downloadBtn.clicked.connect(self.download_model)
         btns.addWidget(self.downloadBtn)
 
+        self.debug = QtWidgets.QCheckBox("Debug")
+        self.debug.setChecked(True)
+        btns.addWidget(self.debug)
+
         layout.addLayout(btns)
 
         statusRow = QtWidgets.QHBoxLayout()
-        statusRow.addWidget(QtWidgets.QLabel('Status Lights:'))
+        statusRow.addWidget(QtWidgets.QLabel('Status:'))
         statusRow.addWidget(self.hotkeyLight)
         statusRow.addWidget(QtWidgets.QLabel('Hotkey'))
         statusRow.addWidget(self.wakeLight)
@@ -232,6 +236,10 @@ class MainWindow(QtWidgets.QMainWindow):
             if d['max_input_channels'] > 0:
                 self.deviceBox.addItem(f"{idx}: {d['name']}", idx)
 
+    def debug_log(self, msg):
+        if self.debug.isChecked():
+            self.append_log('🐛 ' + msg)
+
     def append_log(self, msg):
         ts = QtCore.QDateTime.currentDateTime().toString('HH:mm:ss')
         self.log.append(f'[{ts}] {msg}')
@@ -274,7 +282,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.recordLight.setStyleSheet("color: #c00; font-size: 20px;")
             self.recordBtn.setText("Record")
             if audio:
-                threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start()
+                threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start(); self.debug_log('Wake send thread started')
 
     def send_audio(self, audio_bytes: bytes):
         try:
@@ -294,6 +302,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 wf.setframerate(16000)
                 wf.writeframes(audio_bytes)
 
+            self.debug_log(f'Send audio bytes: {len(audio_bytes)}')
             # try local whisper.cpp
             text = self.run_local_whisper(path) if self.localWhisper.isChecked() else ""
             if text:
@@ -387,7 +396,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                     listening = False
                                     frames = []
                                     silence = 0
-                                    self.wakeStatus.setText('Wake: recording'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.set_status('🎙️ Wake word detected')
+                                    self.wakeStatus.setText('Wake: recording'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.set_status('🎙️ Wake word detected'); self.debug_log('Wake triggered, starting capture')
                             except Exception:
                                 pass
                         if triggered:
@@ -421,11 +430,12 @@ class MainWindow(QtWidgets.QMainWindow):
                                     triggered = False
                                     listening = True
                                     audio = b"".join(frames)
+                                    self.debug_log(f'Wake frames: {len(frames)} bytes: {len(audio)}')
                                     if len(audio) == 0:
                                         self.set_status("⚠️ Wake captured no audio")
                                     else:
                                         self.set_status("📤 Wake send")
-                                    threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start()
+                                    threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start(); self.debug_log('Wake send thread started')
                                     frames = []
                                     silence = 0
                                     break
