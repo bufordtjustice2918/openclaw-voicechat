@@ -65,6 +65,26 @@ class Recorder(QtCore.QObject):
         self.statusChanged.emit("Recording stopped")
         return b"".join(self.frames)
 
+class KeyFilter(QtCore.QObject):
+    def __init__(self, parent, on_down, on_up):
+        super().__init__(parent)
+        self.on_down = on_down
+        self.on_up = on_up
+        self.down = False
+
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_Space:
+            if not self.down:
+                self.down = True
+                self.on_down()
+            return True
+        if event.type() == QtCore.QEvent.KeyRelease and event.key() == QtCore.Qt.Key_Space:
+            if self.down:
+                self.down = False
+                self.on_up()
+            return True
+        return False
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
@@ -138,6 +158,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(central)
         self.load_settings()
         self.update_model_status()
+        self.keyFilter = KeyFilter(self, self.start_hotkey_record, self.stop_hotkey_record)
+        QtWidgets.QApplication.instance().installEventFilter(self.keyFilter)
 
     def load_settings(self):
         try:
@@ -191,6 +213,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def set_status(self, s):
         self.append_log(f'📝 {s}')
+
+    def start_hotkey_record(self):
+        if self.recordBtn.text() == 'Record':
+            self.set_status('␣ Hotkey down: recording')
+            self.toggle_record()
+
+    def stop_hotkey_record(self):
+        if self.recordBtn.text() != 'Record':
+            self.set_status('␣ Hotkey up: send')
+            self.toggle_record()
 
     def toggle_record(self):
         if self.recordBtn.text() == "Record":
@@ -302,7 +334,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     frames = []
                     silence = 0
                     frame_bytes = int(16000*0.03*2)
-                    silence_frames = 20
+                    silence_frames = 15
+                    max_frames = int(16000 * 8)  # ~8s cap
                     while self.alwaysListen.isChecked():
                         data = q.get()
                         if listening and rec.AcceptWaveform(data):
@@ -338,10 +371,11 @@ class MainWindow(QtWidgets.QMainWindow):
                                             silence = 0
                                         else:
                                             silence += 1
-                                if silence >= silence_frames:
+                                if silence >= silence_frames or len(frames) >= max_frames:
                                     triggered = False
                                     listening = True
                                     audio = b"".join(frames)
+                                    self.set_status("📤 Wake send")
                                     threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start()
                                     frames = []
                                     silence = 0
