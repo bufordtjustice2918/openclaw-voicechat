@@ -377,6 +377,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 q = queue.Queue()
                 def cb(indata, frames, time_info, status):
                     q.put(bytes(indata))
+                frame_bytes = int(16000*0.03*2)
                 device = self.deviceBox.currentData()
                 with sd.RawInputStream(samplerate=16000, channels=1, dtype='int16', blocksize=frame_bytes, device=device, callback=cb):
                     self.wakeStatus.setText('Wake: listening'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.set_status('🟢 Listening for wake word…')
