@@ -29,7 +29,7 @@ class Recorder(QtCore.QObject):
                 # indata is bytes-like int16
                 import array
                 arr = array.array('h')
-                    arr.frombytes(indata)
+                arr.frombytes(indata)
                 if len(arr):
                     rms = (sum(x*x for x in arr) / len(arr)) ** 0.5
                     level = min(1.0, rms / 2000.0)
