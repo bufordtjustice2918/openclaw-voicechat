@@ -66,19 +66,21 @@ class Recorder(QtCore.QObject):
         return b"".join(self.frames)
 
 class KeyFilter(QtCore.QObject):
-    def __init__(self, parent, on_down, on_up):
+    def __init__(self, parent, on_down, on_up, key_getter):
+        self.on_key = key_getter
         super().__init__(parent)
         self.on_down = on_down
         self.on_up = on_up
+        self.on_key = key_getter
         self.down = False
 
     def eventFilter(self, obj, event):
-        if event.type() == QtCore.QEvent.KeyPress and event.key() == QtCore.Qt.Key_Space:
+        if event.type() == QtCore.QEvent.KeyPress and event.key() == self.on_key():
             if not self.down:
                 self.down = True
                 self.on_down()
             return True
-        if event.type() == QtCore.QEvent.KeyRelease and event.key() == QtCore.Qt.Key_Space:
+        if event.type() == QtCore.QEvent.KeyRelease and event.key() == self.on_key():
             if self.down:
                 self.down = False
                 self.on_up()
@@ -109,6 +111,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.alwaysListen = QtWidgets.QCheckBox("Always‑listen (wake word)")
         self.wakeWord = QtWidgets.QLineEdit("buford")
         self.modelStatus = QtWidgets.QLabel("Model: tiny")
+        self.hotkey = QtWidgets.QLineEdit("Space")
+        self.hotkeyStatus = QtWidgets.QLabel("Hotkey: idle")
+        self.hotkeyStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
+        self.wakeStatus = QtWidgets.QLabel("Wake: idle")
+        self.wakeStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
         self.modelStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
 
         layout.addWidget(QtWidgets.QLabel("Receiver URL"))
@@ -158,7 +165,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(central)
         self.load_settings()
         self.update_model_status()
-        self.keyFilter = KeyFilter(self, self.start_hotkey_record, self.stop_hotkey_record)
+        self.keyFilter = KeyFilter(self, self.start_hotkey_record, self.stop_hotkey_record, self.get_hotkey_qt)
         QtWidgets.QApplication.instance().installEventFilter(self.keyFilter)
 
     def load_settings(self):
@@ -214,13 +221,22 @@ class MainWindow(QtWidgets.QMainWindow):
     def set_status(self, s):
         self.append_log(f'📝 {s}')
 
+    def get_hotkey_qt(self):
+        key = self.hotkey.text().strip().lower()
+        mapping = {'space': QtCore.Qt.Key_Space, 'enter': QtCore.Qt.Key_Return, 'return': QtCore.Qt.Key_Return}
+        return mapping.get(key, QtCore.Qt.Key_Space)
+
     def start_hotkey_record(self):
         if self.recordBtn.text() == 'Record':
+            self.hotkeyStatus.setText('Hotkey: down')
+            self.hotkeyStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;')
             self.set_status('␣ Hotkey down: recording')
             self.toggle_record()
 
     def stop_hotkey_record(self):
         if self.recordBtn.text() != 'Record':
+            self.hotkeyStatus.setText('Hotkey: idle')
+            self.hotkeyStatus.setStyleSheet('color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;')
             self.set_status('␣ Hotkey up: send')
             self.toggle_record()
 
@@ -328,7 +344,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 def cb(indata, frames, time_info, status):
                     q.put(bytes(indata))
                 with sd.RawInputStream(samplerate=16000, channels=1, dtype='int16', callback=cb):
-                    self.set_status('🟢 Listening for wake word…')
+                    self.wakeStatus.setText('Wake: listening'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.set_status('🟢 Listening for wake word…')
                     listening = True
                     triggered = False
                     frames = []
@@ -346,7 +362,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                     listening = False
                                     frames = []
                                     silence = 0
-                                    self.set_status('🎙️ Wake word detected')
+                                    self.wakeStatus.setText('Wake: recording'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.set_status('🎙️ Wake word detected')
                             except Exception:
                                 pass
                         if triggered:
@@ -372,6 +388,11 @@ class MainWindow(QtWidgets.QMainWindow):
                                         else:
                                             silence += 1
                                 if silence >= silence_frames or len(frames) >= max_frames:
+                                    if len(frames) == 0:
+                                        listening = True
+                                        triggered = False
+                                        silence = 0
+                                        continue
                                     triggered = False
                                     listening = True
                                     audio = b"".join(frames)
