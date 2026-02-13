@@ -61,16 +61,22 @@ def ingest(
 
         if transcript:
             body = f"Voice input: {transcript}\n{media_ref}\nSource: openclaw-voicechat"
+            if TARGET_CHANNEL:
+                subprocess.run(
+                    ["openclaw", "message", "send", "--channel", "discord", "--target", TARGET_CHANNEL, "--message", body],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+            else:
+                subprocess.run(
+                    ["openclaw", "system", "event", "--mode", "now", "--text", body],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
         else:
-            body = f"Voice input received (no transcript)\n{media_ref}\nSource: openclaw-voicechat"
-
-        if TARGET_CHANNEL:
-            subprocess.run(
-                ["openclaw", "message", "send", "--channel", "discord", "--target", TARGET_CHANNEL, "--message", body],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
+            print('BLANK_AUDIO: transcript empty, not sending')
         else:
             subprocess.run(
                 ["openclaw", "system", "event", "--mode", "now", "--text", body],

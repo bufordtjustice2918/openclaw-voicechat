@@ -123,6 +123,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wakeDetectedLight.setStyleSheet("color: #c00; font-size: 20px;")
         self.recordLight = QtWidgets.QLabel("●")
         self.recordLight.setStyleSheet("color: #c00; font-size: 20px;")
+        self.orb = QtWidgets.QLabel("●")
+        self.orb.setStyleSheet("color: #c00; font-size: 28px;")
+        self.orbTimer = QtCore.QTimer(self)
+        self.orbPulse = False
+        self.orbTimer.timeout.connect(self._pulse_orb)
         self.wakeStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
         self.modelStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
 
@@ -170,6 +175,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         statusRow = QtWidgets.QHBoxLayout()
         statusRow.addWidget(QtWidgets.QLabel('Status:'))
+        statusRow.addWidget(QtWidgets.QLabel('Orb'))
+        statusRow.addWidget(self.orb)
         statusRow.addWidget(self.hotkeyLight)
         statusRow.addWidget(QtWidgets.QLabel('Hotkey'))
         statusRow.addWidget(self.wakeLight)
@@ -239,6 +246,13 @@ class MainWindow(QtWidgets.QMainWindow):
     def debug_log(self, msg):
         if self.debug.isChecked():
             self.append_log('🐛 ' + msg)
+
+    def _pulse_orb(self):
+        if self.orbPulse:
+            self.orb.setStyleSheet('color: #0f0; font-size: 28px;')
+        else:
+            self.orb.setStyleSheet('color: #0a0; font-size: 28px;')
+        self.orbPulse = not self.orbPulse
 
     def append_log(self, msg):
         ts = QtCore.QDateTime.currentDateTime().toString('HH:mm:ss')
@@ -380,7 +394,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 frame_bytes = int(16000*0.03*2)
                 device = self.deviceBox.currentData()
                 with sd.RawInputStream(samplerate=16000, channels=1, dtype='int16', blocksize=frame_bytes, device=device, callback=cb):
-                    self.wakeStatus.setText('Wake: listening'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.set_status('🟢 Listening for wake word…')
+                    self.wakeStatus.setText('Wake: listening'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.orbTimer.start(400); self.orbPulse=True; self.set_status('🟢 Listening for wake word…')
                     listening = True
                     triggered = False
                     frames = []
