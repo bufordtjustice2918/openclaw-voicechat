@@ -377,7 +377,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 q = queue.Queue()
                 def cb(indata, frames, time_info, status):
                     q.put(bytes(indata))
-                with sd.RawInputStream(samplerate=16000, channels=1, dtype='int16', callback=cb):
+                device = self.deviceBox.currentData()
+                with sd.RawInputStream(samplerate=16000, channels=1, dtype='int16', blocksize=frame_bytes, device=device, callback=cb):
                     self.wakeStatus.setText('Wake: listening'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.set_status('🟢 Listening for wake word…')
                     listening = True
                     triggered = False
@@ -389,6 +390,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     while self.alwaysListen.isChecked():
                         try:
                             data = q.get(timeout=1)
+                            self.debug_log(f"Wake data bytes: {len(data)}")
                         except Exception:
                             if triggered:
                                 self.debug_log("Wake: waiting for audio...")
