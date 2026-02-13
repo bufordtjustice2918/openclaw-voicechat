@@ -419,7 +419,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                     listening = False
                                     frames = []
                                     silence = 0
-                                    self.wakeStatus.setText('Wake: recording'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.orbTimer.stop(); self.orb.setStyleSheet('color: #0f0; font-size: 28px;'); self.set_status('🎙️ Wake word detected'); self.debug_log('Wake triggered, starting capture')
+                                    self.wakeStatus.setText('Wake: recording'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.orbPulse = True; self.orbTimer.start(300); self.set_status('🎙️ Wake word detected'); self.debug_log('Wake triggered, starting capture')
                             except Exception:
                                 pass
                         if triggered:
@@ -459,8 +459,10 @@ class MainWindow(QtWidgets.QMainWindow):
                                     if len(audio) < 16000:
                                         self.set_status("⚠️ Wake captured too-short audio")
                                         self.debug_log('Wake audio skipped (too short)')
+                                        self.orbTimer.stop(); self.orb.setStyleSheet('color: #c00; font-size: 28px;')
                                     else:
                                         self.set_status("📤 Wake send")
+                                        self.orbTimer.stop(); self.orb.setStyleSheet('color: #c00; font-size: 28px;')
                                         threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start(); self.debug_log('Wake send thread started')
                                     frames = []
                                     silence = 0
