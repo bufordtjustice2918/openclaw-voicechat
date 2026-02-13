@@ -277,9 +277,9 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         def run():
             try:
-                model_path = os.path.expanduser('~/.openclaw-voicechat/vosk-model')
+                model_path = os.path.expanduser('.vosk/vosk-model')
                 if not os.path.isdir(model_path):
-                    self.set_status('❌ Vosk model missing (~/.openclaw-voicechat/vosk-model)')
+                    self.set_status('❌ Vosk model missing (.vosk/vosk-model)')
                     return
                 model = vosk.Model(model_path)
                 rec = vosk.KaldiRecognizer(model, 16000, f'["{self.wakeWord.text().strip().lower()}"]')

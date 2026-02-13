@@ -10,7 +10,7 @@ source "$VENV/bin/activate"
 python3 -m pip install --upgrade pip
 python3 -m pip install -r "$ROOT_DIR/requirements.txt"
 # ensure Vosk model
-MODEL_DIR="$HOME/.openclaw-voicechat"
+MODEL_DIR="$ROOT_DIR/.vosk"
 if [ ! -d "$MODEL_DIR/vosk-model" ]; then
   mkdir -p "$MODEL_DIR"
   curl -L -o "$MODEL_DIR/vosk.zip" https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
