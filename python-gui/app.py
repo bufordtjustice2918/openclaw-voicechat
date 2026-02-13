@@ -387,7 +387,12 @@ class MainWindow(QtWidgets.QMainWindow):
                     silence_frames = 12
                     max_frames = int(16000 * 10)  # ~10s cap
                     while self.alwaysListen.isChecked():
-                        data = q.get()
+                        try:
+                            data = q.get(timeout=1)
+                        except Exception:
+                            if triggered:
+                                self.debug_log("Wake: waiting for audio...")
+                            continue
                         if listening and rec.AcceptWaveform(data):
                             try:
                                 r = json.loads(rec.Result())
@@ -421,6 +426,8 @@ class MainWindow(QtWidgets.QMainWindow):
                                             silence = 0
                                         else:
                                             silence += 1
+                                if len(frames) % 50 == 0:
+                                    self.debug_log(f"Wake frames={len(frames)} silence={silence}")
                                 if silence >= silence_frames or len(frames) >= max_frames:
                                     if len(frames) == 0:
                                         listening = True
