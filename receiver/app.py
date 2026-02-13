@@ -14,6 +14,7 @@ OPENCLAW_TOKEN = os.getenv("OPENCLAW_TOKEN", "")
 WORKSPACE_DIR = Path(os.getenv("WORKSPACE_DIR", "/home/kavan/.openclaw/workspace")).resolve()
 INBOUND_DIR = Path(os.getenv("INBOUND_DIR", "../inbound")).resolve()
 DELETE_ON_SUCCESS = os.getenv("DELETE_ON_SUCCESS", "true").lower() == "true"
+TARGET_CHANNEL = os.getenv("TARGET_CHANNEL", "")  # e.g., channel:1469340639987499182
 
 app = FastAPI()
 
@@ -42,8 +43,7 @@ def ingest(
     with inbound_path.open("wb") as f:
         shutil.copyfileobj(audio.file, f)
 
-    # Transcribe locally (fast whisper) and enqueue as a system event.
-    # This avoids relying on MEDIA ingestion for system events.
+    # Transcribe locally (fast whisper) and post directly to Discord channel if configured.
     try:
         rel_path = os.path.relpath(inbound_path, WORKSPACE_DIR)
         media_ref = f"MEDIA:./{rel_path}" if not rel_path.startswith(".") else f"MEDIA:{rel_path}"
@@ -60,16 +60,24 @@ def ingest(
             transcript = ""
 
         if transcript:
-            text = f"Voice input: {transcript}\n{media_ref}\nSource: openclaw-voicechat"
+            body = f"Voice input: {transcript}\n{media_ref}\nSource: openclaw-voicechat"
         else:
-            text = f"Voice input received (no transcript)\n{media_ref}\nSource: openclaw-voicechat"
+            body = f"Voice input received (no transcript)\n{media_ref}\nSource: openclaw-voicechat"
 
-        subprocess.run(
-            ["openclaw", "system", "event", "--mode", "now", "--text", text],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        if TARGET_CHANNEL:
+            subprocess.run(
+                ["openclaw", "message", "send", "--channel", "discord", "--target", TARGET_CHANNEL, "--message", body],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        else:
+            subprocess.run(
+                ["openclaw", "system", "event", "--mode", "now", "--text", body],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
     except Exception as e:
         return JSONResponse(status_code=502, content={"error": "Gateway enqueue failed", "detail": str(e)})
 
@@ -93,12 +101,21 @@ def ingest_text(payload: TextPayload, x_openclaw_token: str = Header(default="")
 
     try:
         body = f"Voice input: {text}\nSource: openclaw-voicechat"
-        subprocess.run(
-            ["openclaw", "system", "event", "--mode", "now", "--text", body],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        # Send to Discord channel directly if TARGET_CHANNEL is set, else system event
+        if TARGET_CHANNEL:
+            subprocess.run(
+                ["openclaw", "message", "send", "--channel", "discord", "--target", TARGET_CHANNEL, "--message", body],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        else:
+            subprocess.run(
+                ["openclaw", "system", "event", "--mode", "now", "--text", body],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
     except Exception as e:
         return JSONResponse(status_code=502, content={"error": "Gateway enqueue failed", "detail": str(e)})
 

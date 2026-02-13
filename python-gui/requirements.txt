@@ -3,3 +3,4 @@ sounddevice
 webrtcvad
 vosk
 requests
+setuptools
