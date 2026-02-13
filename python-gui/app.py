@@ -68,6 +68,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("OpenClaw VoiceChat")
         self.setMinimumSize(720, 520)
 
+        self.settings_path = os.path.expanduser("~/.openclaw-voicechat.json")
+        self.wake_thread = None
         self.recorder = Recorder()
         self.recorder.levelChanged.connect(self.on_level)
         self.recorder.statusChanged.connect(self.set_status)
@@ -79,10 +81,25 @@ class MainWindow(QtWidgets.QMainWindow):
         self.token = QtWidgets.QLineEdit("")
         self.token.setEchoMode(QtWidgets.QLineEdit.Password)
 
+        self.localWhisper = QtWidgets.QCheckBox("Use local whisper")
+        self.localWhisper.setChecked(True)
+        self.alwaysListen = QtWidgets.QCheckBox("Always‑listen (wake word)")
+        self.wakeWord = QtWidgets.QLineEdit("buford")
+        self.modelStatus = QtWidgets.QLabel("Model: tiny")
+        self.modelStatus.setStyleSheet("color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;")
+
         layout.addWidget(QtWidgets.QLabel("Receiver URL"))
         layout.addWidget(self.receiver)
         layout.addWidget(QtWidgets.QLabel("Token"))
         layout.addWidget(self.token)
+        layout.addWidget(self.localWhisper)
+        hl = QtWidgets.QHBoxLayout()
+        hl.addWidget(QtWidgets.QLabel("Wake word"))
+        hl.addWidget(self.wakeWord)
+        hl.addWidget(self.alwaysListen)
+        hl.addWidget(self.modelStatus)
+        layout.addLayout(hl)
+        self.alwaysListen.stateChanged.connect(lambda _: self.start_wake_listener())
 
         self.deviceBox = QtWidgets.QComboBox()
         self.refresh_devices()
@@ -99,6 +116,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.recordBtn.clicked.connect(self.toggle_record)
         btns.addWidget(self.recordBtn)
 
+        self.saveBtn = QtWidgets.QPushButton("Save Settings")
+        self.saveBtn.clicked.connect(self.save_settings)
+        btns.addWidget(self.saveBtn)
+
         self.downloadBtn = QtWidgets.QPushButton("Download larger model")
         self.downloadBtn.clicked.connect(self.download_model)
         btns.addWidget(self.downloadBtn)
@@ -112,6 +133,44 @@ class MainWindow(QtWidgets.QMainWindow):
         self.append_log('✅ Ready')
 
         self.setCentralWidget(central)
+        self.load_settings()
+        self.update_model_status()
+
+    def load_settings(self):
+        try:
+            if os.path.exists(self.settings_path):
+                data = json.load(open(self.settings_path, 'r'))
+                self.receiver.setText(data.get('receiver', self.receiver.text()))
+                self.token.setText(data.get('token', ''))
+                self.localWhisper.setChecked(data.get('local_whisper', True))
+                self.wakeWord.setText(data.get('wake_word', 'buford'))
+                self.alwaysListen.setChecked(data.get('always_listen', False))
+        except Exception:
+            pass
+
+    def save_settings(self):
+        data = {
+            'receiver': self.receiver.text().strip(),
+            'token': self.token.text().strip(),
+            'local_whisper': self.localWhisper.isChecked(),
+            'wake_word': self.wakeWord.text().strip(),
+            'always_listen': self.alwaysListen.isChecked(),
+        }
+        try:
+            json.dump(data, open(self.settings_path, 'w'))
+            self.set_status('✅ Settings saved')
+        except Exception as e:
+            self.set_status(f'❌ Settings save failed: {e}')
+
+    def update_model_status(self):
+        base_dir = os.path.join(os.path.dirname(__file__), 'whisper')
+        base_model = os.path.join(base_dir, 'ggml-base.bin')
+        if os.path.exists(base_model):
+            self.modelStatus.setText('Model: base')
+            self.modelStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;')
+        else:
+            self.modelStatus.setText('Model: tiny')
+            self.modelStatus.setStyleSheet('color: white; background-color: #c00; padding: 2px 6px; border-radius: 4px;')
 
     def refresh_devices(self):
         self.deviceBox.clear()
@@ -160,7 +219,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 wf.writeframes(audio_bytes)
 
             # try local whisper.cpp
-            text = self.run_local_whisper(path)
+            text = self.run_local_whisper(path) if self.localWhisper.isChecked() else ""
             if text:
                 self.send_text(text)
                 self.set_status("Text sent")
@@ -208,12 +267,67 @@ class MainWindow(QtWidgets.QMainWindow):
         except Exception:
             pass
 
-    def start_helper(self):
-        helper = __import__('os').path.join(__import__('os').path.dirname(__file__), 'helper', 'voice_helper.py')
-        if not __import__('os').path.exists(helper):
-            self.set_status('❌ helper/voice_helper.py missing')
+    def start_wake_listener(self):
+        if self.wake_thread and self.wake_thread.is_alive():
             return
-        self.set_status('🚧 Always-listen not wired yet')
+        if not self.alwaysListen.isChecked():
+            self.set_status('🛑 Wake word disabled')
+            return
+        def run():
+            try:
+                model_path = os.path.expanduser('~/.openclaw-voicechat/vosk-model')
+                if not os.path.isdir(model_path):
+                    self.set_status('❌ Vosk model missing (~/.openclaw-voicechat/vosk-model)')
+                    return
+                model = vosk.Model(model_path)
+                rec = vosk.KaldiRecognizer(model, 16000, f'["{self.wakeWord.text().strip().lower()}"]')
+                vad = webrtcvad.Vad(2)
+                q = queue.Queue()
+                def cb(indata, frames, time_info, status):
+                    q.put(bytes(indata))
+                with sd.RawInputStream(samplerate=16000, channels=1, dtype='int16', callback=cb):
+                    self.set_status('🟢 Listening for wake word…')
+                    listening = True
+                    triggered = False
+                    frames = []
+                    silence = 0
+                    frame_bytes = int(16000*0.03*2)
+                    silence_frames = 20
+                    while self.alwaysListen.isChecked():
+                        data = q.get()
+                        if listening and rec.AcceptWaveform(data):
+                            try:
+                                r = json.loads(rec.Result())
+                                if r.get('text','').strip().lower() == self.wakeWord.text().strip().lower():
+                                    triggered = True
+                                    listening = False
+                                    frames = []
+                                    silence = 0
+                                    self.set_status('🎙️ Wake word detected')
+                            except Exception:
+                                pass
+                        if triggered:
+                            for i in range(0, len(data), frame_bytes):
+                                frame = data[i:i+frame_bytes]
+                                if len(frame) < frame_bytes:
+                                    continue
+                                frames.append(frame)
+                                if vad.is_speech(frame, 16000):
+                                    silence = 0
+                                else:
+                                    silence += 1
+                                if silence >= silence_frames:
+                                    triggered = False
+                                    listening = True
+                                    audio = b"".join(frames)
+                                    threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start()
+                                    frames = []
+                                    silence = 0
+                                    break
+            except Exception as e:
+                self.set_status(f'❌ Wake listener error: {e}')
+        self.wake_thread = threading.Thread(target=run, daemon=True)
+        self.wake_thread.start()
 
     def download_model(self):
         try:
