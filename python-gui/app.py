@@ -384,7 +384,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     triggered = False
                     frames = []
                     silence = 0
-                    frame_bytes = int(16000*0.03*2)
                     silence_frames = 12
                     max_frames = int(16000 * 10)  # ~10s cap
                     while self.alwaysListen.isChecked():
