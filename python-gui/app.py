@@ -6,6 +6,8 @@ import threading
 import requests
 import os
 import json
+import vosk
+import webrtcvad
 from PySide6 import QtWidgets, QtCore
 import sounddevice as sd
 
