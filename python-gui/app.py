@@ -290,10 +290,12 @@ class MainWindow(QtWidgets.QMainWindow):
             device = self.deviceBox.currentData()
             self.recorder.start(device=device)
             self.recordLight.setStyleSheet("color: #0a0; font-size: 20px;")
+            self.orb.setStyleSheet('color: #0f0; font-size: 28px;')
             self.recordBtn.setText("Stop & Send")
         else:
             audio = self.recorder.stop()
             self.recordLight.setStyleSheet("color: #c00; font-size: 20px;")
+            self.orb.setStyleSheet('color: #c00; font-size: 28px;')
             self.recordBtn.setText("Record")
             if audio:
                 threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start(); self.debug_log('Wake send thread started')
@@ -417,7 +419,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                     listening = False
                                     frames = []
                                     silence = 0
-                                    self.wakeStatus.setText('Wake: recording'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.set_status('🎙️ Wake word detected'); self.debug_log('Wake triggered, starting capture')
+                                    self.wakeStatus.setText('Wake: recording'); self.wakeStatus.setStyleSheet('color: white; background-color: #0a0; padding: 2px 6px; border-radius: 4px;'); self.wakeLight.setStyleSheet('color: #0a0; font-size: 16px;'); self.orbTimer.stop(); self.orb.setStyleSheet('color: #0f0; font-size: 28px;'); self.set_status('🎙️ Wake word detected'); self.debug_log('Wake triggered, starting capture')
                             except Exception:
                                 pass
                         if triggered:
@@ -454,11 +456,12 @@ class MainWindow(QtWidgets.QMainWindow):
                                     listening = True
                                     audio = b"".join(frames)
                                     self.debug_log(f'Wake frames: {len(frames)} bytes: {len(audio)}')
-                                    if len(audio) == 0:
-                                        self.set_status("⚠️ Wake captured no audio")
+                                    if len(audio) < 16000:
+                                        self.set_status("⚠️ Wake captured too-short audio")
+                                        self.debug_log('Wake audio skipped (too short)')
                                     else:
                                         self.set_status("📤 Wake send")
-                                    threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start(); self.debug_log('Wake send thread started')
+                                        threading.Thread(target=self.send_audio, args=(audio,), daemon=True).start(); self.debug_log('Wake send thread started')
                                     frames = []
                                     silence = 0
                                     break
